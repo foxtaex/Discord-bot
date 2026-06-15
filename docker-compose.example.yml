@@ -1,0 +1,42 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DISCORD_TOKEN: replace-me
+      DISCORD_CLIENT_ID: replace-me
+      DB_CLIENT: mysql2
+      DB_HOST: database
+      DB_NAME: discord_bot
+      DB_USER: discord_bot
+      DB_PASSWORD: replace-me
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - bot-data:/app/data
+
+  database:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: discord_bot
+      MARIADB_USER: discord_bot
+      MARIADB_PASSWORD: replace-me
+      MARIADB_ROOT_PASSWORD: replace-root-password
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bot-data:
+  mariadb-data:

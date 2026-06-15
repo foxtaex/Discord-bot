@@ -1,0 +1,56 @@
+{
+  "locale": "de",
+  "branding": {
+    "name": "Support Bot",
+    "color": "#5865F2",
+    "footer": "Discord Support"
+  },
+  "welcome": {
+    "enabled": false,
+    "channelId": "",
+    "message": "Willkommen {user} auf **{server}**! Du bist Mitglied Nummer **{memberCount}**.",
+    "title": "Willkommen!",
+    "color": "#57F287",
+    "backgroundUrl": "",
+    "imageEnabled": true
+  },
+  "tickets": {
+    "enabled": true,
+    "categoryId": "",
+    "archiveCategoryId": "",
+    "logChannelId": "",
+    "supportRoleIds": [],
+    "transcriptsEnabled": true,
+    "transcriptMaxMessages": 5000,
+    "panel": {
+      "title": "Support-Tickets",
+      "description": "Waehle im Menue die passende Kategorie fuer dein Anliegen.",
+      "placeholder": "Ticket-Kategorie auswaehlen"
+    },
+    "categories": [
+      {
+        "key": "general",
+        "label": "Allgemeine Hilfe",
+        "description": "Fragen und allgemeiner Support",
+        "emoji": "💬",
+        "supportRoleIds": []
+      },
+      {
+        "key": "technical",
+        "label": "Technischer Support",
+        "description": "Technische Probleme und Fehler",
+        "emoji": "🛠️",
+        "supportRoleIds": []
+      }
+    ]
+  },
+  "voiceSupport": {
+    "enabled": false,
+    "waitingChannelId": "",
+    "categoryId": "",
+    "notificationChannelId": "",
+    "supportRoleIds": [],
+    "roomName": "\u30fbSupport | {username}",
+    "deleteRoomOnClose": true
+  }
+}
