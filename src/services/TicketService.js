@@ -201,6 +201,11 @@ export class TicketService {
     if (!['open', 'claimed'].includes(ticket.status)) {
       throw new UserError('Dieses Ticket kann nicht uebernommen werden.');
     }
+    if (ticket.claimedBy && ticket.claimedBy !== member.id) {
+      throw new UserError(
+        `Dieses Ticket wurde bereits von <@${ticket.claimedBy}> uebernommen.`,
+      );
+    }
 
     const updated = await this.ticketRepository.update(ticket.id, {
       status: 'claimed',
@@ -494,6 +499,20 @@ export class TicketService {
         .setCustomId(`ticket:claim:${ticketId}`)
         .setLabel('Claim')
         .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`ticket:close:${ticketId}`)
+        .setLabel('Archive')
+        .setStyle(ButtonStyle.Danger),
+    );
+  }
+
+  createClaimedControls(ticketId, supporterName) {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ticket:claimed:${ticketId}`)
+        .setLabel(`Claimed by ${supporterName}`.slice(0, 80))
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
       new ButtonBuilder()
         .setCustomId(`ticket:close:${ticketId}`)
         .setLabel('Archive')

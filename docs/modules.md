@@ -20,6 +20,10 @@ Bildfehler wird weiterhin ein Embed ohne grosses Bild gesendet.
 6. Nutzer, Bot und Support-Rollen erhalten gezielte Rechte.
 7. Der Kanal erhaelt Buttons fuer Uebernahme und Archivierung.
 
+Beim Claim wird der Supporter dauerhaft als `claimed_by` gespeichert. Das
+Ticket-Embed zeigt anschliessend `Claimed by @Supporter`, und der Claim-Button
+wird deaktiviert, damit kein zweiter Supporter die Zuweisung ueberschreibt.
+
 ### Archivierung
 
 Beim Schliessen:

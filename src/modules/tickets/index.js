@@ -1,6 +1,7 @@
 import {
   AttachmentBuilder,
   ChannelType,
+  EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -132,7 +133,23 @@ async function handleButton(interaction, service) {
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   if (action === 'claim') {
-    await service.claim(ticket, interaction.member);
+    const claimed = await service.claim(ticket, interaction.member);
+    const embed = interaction.message.embeds[0]
+      ? EmbedBuilder.from(interaction.message.embeds[0]).addFields({
+          name: 'Claimed by',
+          value: `<@${interaction.member.id}>`,
+          inline: true,
+        })
+      : null;
+    await interaction.message.edit({
+      embeds: embed ? [embed] : interaction.message.embeds,
+      components: [
+        service.createClaimedControls(
+          claimed.id,
+          interaction.member.displayName,
+        ),
+      ],
+    });
     await interaction.editReply(
       `Ticket ${ticket.ticketNumber} wurde dir zugewiesen.`,
     );
