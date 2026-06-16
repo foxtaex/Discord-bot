@@ -86,7 +86,7 @@ function voiceCommand(service) {
       if (action === 'status') {
         if (user.id !== interaction.user.id) {
           const config = await service.configService.get(interaction.guildId);
-          service.assertSupport(interaction.member, config);
+          service.assertSupport(interaction.member, config, voiceCase);
         }
         await interaction.reply({
           content: `Fall #${voiceCase.id}: **${voiceCase.status}**, Raum: ${

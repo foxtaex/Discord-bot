@@ -20,7 +20,7 @@ In Discord:
 
 ```js
 const response = await fetch(
-  'http://127.0.0.1:3000/api/v1/guilds/GUILD_ID/ticket-categories',
+  'http://127.0.0.1:6767/api/v1/guilds/GUILD_ID/ticket-categories',
   {
     method: 'PUT',
     headers: {
@@ -47,7 +47,7 @@ if (!response.ok) throw new Error(await response.text());
 
 ```js
 await fetch(
-  'http://127.0.0.1:3000/api/v1/guilds/GUILD_ID/messages',
+  'http://127.0.0.1:6767/api/v1/guilds/GUILD_ID/messages',
   {
     method: 'POST',
     headers: {
@@ -88,7 +88,7 @@ await api(`/tickets/${created.publicId}/reopen`, { method: 'POST' });
 
 async function api(path, options = {}) {
   const response = await fetch(
-    `http://127.0.0.1:3000/api/v1/guilds/GUILD_ID${path}`,
+    `http://127.0.0.1:6767/api/v1/guilds/GUILD_ID${path}`,
     {
       ...options,
       headers: {
@@ -107,7 +107,7 @@ async function api(path, options = {}) {
 ## Externes Log schreiben
 
 ```bash
-curl -X POST http://127.0.0.1:3000/api/v1/guilds/GUILD_ID/logs \
+curl -X POST http://127.0.0.1:6767/api/v1/guilds/GUILD_ID/logs \
   -H "X-API-Key: API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

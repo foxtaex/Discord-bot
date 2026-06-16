@@ -6,6 +6,8 @@ import { ApiKeyService } from '../src/services/ApiKeyService.js';
 import { GuildConfigRepository } from '../src/repositories/GuildConfigRepository.js';
 import { GuildConfigService } from '../src/services/GuildConfigService.js';
 import { TicketRepository } from '../src/repositories/TicketRepository.js';
+import { TicketPanelRepository } from '../src/repositories/TicketPanelRepository.js';
+import { VoiceCaseRepository } from '../src/repositories/VoiceCaseRepository.js';
 
 const logger = {
   info() {},
@@ -36,6 +38,23 @@ test('SQLite repositories persist config, API keys and ticket history', async ()
     assert.equal(guildConfig.welcome.channelId, '');
     assert.equal(guildConfig.welcome.color, '#57F287');
 
+    await configService.replaceVoiceCategories('guild-1', [
+      {
+        key: 'technical',
+        label: 'Technical',
+        waitingChannelId: 'waiting-1',
+        parentCategoryId: 'parent-1',
+        notificationChannelId: 'notifications-1',
+        supportRoleIds: ['role-1'],
+        roomName: 'Support | {username}',
+      },
+    ]);
+    const voiceCategories = (
+      await configService.get('guild-1', { refresh: true })
+    ).voiceSupport.categories;
+    assert.equal(voiceCategories[0].key, 'technical');
+    assert.deepEqual(voiceCategories[0].supportRoleIds, ['role-1']);
+
     const apiKeys = new ApiKeyService(database);
     const created = await apiKeys.create({
       name: 'test',
@@ -58,13 +77,64 @@ test('SQLite repositories persist config, API keys and ticket history', async ()
       (await tickets.findByTicketNumber(ticket.ticketNumber)).id,
       ticket.id,
     );
+    await tickets.create({
+      guildId: 'guild-1',
+      userId: 'user-1',
+      categoryKey: 'general',
+    });
+    await tickets.create({
+      guildId: 'guild-1',
+      userId: 'user-1',
+      categoryKey: 'general',
+    });
+    assert.equal(
+      await tickets.countActive('guild-1', 'user-1', 'general'),
+      3,
+    );
+    await assert.rejects(
+      tickets.create({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        categoryKey: 'general',
+      }),
+      (error) => error.code === 'TICKET_ACTIVE_LIMIT',
+    );
     await tickets.update(ticket.id, {
       status: 'archived',
       active_key: null,
     });
+    await tickets.create({
+      guildId: 'guild-1',
+      userId: 'user-1',
+      categoryKey: 'general',
+    });
+    assert.equal(
+      await tickets.countActive('guild-1', 'user-1', 'general'),
+      3,
+    );
     await tickets.addAction(ticket.id, 'archived', 'supporter-1');
     assert.equal((await tickets.findById(ticket.id)).status, 'archived');
     assert.equal((await tickets.listActions(ticket.id))[0].action, 'archived');
+
+    const ticketPanels = new TicketPanelRepository(database);
+    await ticketPanels.register({
+      guildId: 'guild-1',
+      channelId: 'panel-channel',
+      messageId: 'panel-message',
+      createdBy: 'admin-1',
+    });
+    const storedPanels = await ticketPanels.listByGuild('guild-1');
+    assert.equal(storedPanels[0].messageId, 'panel-message');
+    assert.equal(storedPanels[0].createdBy, 'admin-1');
+
+    const voiceCases = new VoiceCaseRepository(database);
+    const voiceCase = await voiceCases.create({
+      guildId: 'guild-1',
+      userId: 'user-1',
+      waitingChannelId: 'waiting-1',
+      voiceCategoryKey: 'technical',
+    });
+    assert.equal(voiceCase.voiceCategoryKey, 'technical');
   } finally {
     await database.destroy();
   }

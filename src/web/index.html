@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Support Platform</title>
+    <link rel="stylesheet" href="/panel/assets/app.css">
+  </head>
+  <body>
+    <section id="login-view" class="login-shell">
+      <form id="login-form" class="login-card">
+        <div class="brand-mark">SP</div>
+        <p class="eyebrow">Discord Support Platform</p>
+        <h1>Webpanel</h1>
+        <p class="muted">Melde dich mit einem einmal verwendbaren Schlüssel aus Discord an.</p>
+        <label>Zugriffsschlüssel
+          <input id="access-key" name="key" type="password" autocomplete="one-time-code" required>
+        </label>
+        <button type="submit">Anmelden</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="app-shell" class="app-shell" hidden>
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark small">SP</span><strong>Support Platform</strong></div>
+        <nav>
+          <button class="nav-item active" data-view="dashboard">Übersicht</button>
+          <button class="nav-item" data-view="settings">Einstellungen</button>
+          <button class="nav-item" data-view="factions">Fraktionen</button>
+          <button class="nav-item" data-view="keys">Zugriff & Keys</button>
+          <button class="nav-item" data-view="logs">Audit-Logs</button>
+        </nav>
+        <button id="logout" class="ghost">Abmelden</button>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Bot-Verwaltung</p>
+            <h1 id="page-title">Übersicht</h1>
+          </div>
+          <div id="session-badge" class="session-badge"></div>
+        </header>
+
+        <section id="view-dashboard" class="view active">
+          <div id="status-grid" class="metric-grid"></div>
+          <div class="panel">
+            <div class="panel-heading"><h2>Module</h2><span>Live-Status</span></div>
+            <div id="module-grid" class="module-grid"></div>
+          </div>
+        </section>
+
+        <section id="view-settings" class="view">
+          <form id="settings-form" class="panel form-grid">
+            <div class="panel-heading full"><h2>Server-Einstellungen</h2><span>Alle Änderungen werden protokolliert</span></div>
+            <label class="full">Willkommenstext<textarea name="welcomeMessage" rows="3"></textarea></label>
+            <label>Brand-Farbe<input name="brandColor" type="color"></label>
+            <label>Willkommensfarbe<input name="welcomeColor" type="color"></label>
+            <label>Archiv-Kategorie-ID<input name="archiveCategoryId"></label>
+            <label>Voice-Warteraum-ID<input name="waitingChannelId"></label>
+            <label class="full">Ticket-Support-Rollen <input name="ticketRoles" placeholder="ID, ID"></label>
+            <label class="full">Voice-Support-Rollen <input name="voiceRoles" placeholder="ID, ID"></label>
+            <fieldset class="full toggles">
+              <legend>Module</legend>
+              <label><input type="checkbox" name="welcomeEnabled"> Willkommen</label>
+              <label><input type="checkbox" name="ticketsEnabled"> Tickets</label>
+              <label><input type="checkbox" name="voiceEnabled"> Voice-Support</label>
+              <label><input type="checkbox" name="factionsEnabled"> Fraktionen</label>
+            </fieldset>
+            <button type="submit">Einstellungen speichern</button>
+          </form>
+
+          <div class="panel">
+            <div class="panel-heading"><h2>Ticket-Kategorien</h2><button id="add-category" class="secondary">Kategorie hinzufügen</button></div>
+            <div id="category-list" class="stack"></div>
+            <button id="save-categories">Kategorien speichern</button>
+          </div>
+        </section>
+
+        <section id="view-factions" class="view">
+          <div class="panel">
+            <div class="panel-heading"><h2>Fraktionsliste</h2><button id="add-faction">Fraktion erstellen</button></div>
+            <div id="faction-list" class="card-grid"></div>
+          </div>
+        </section>
+
+        <section id="view-keys" class="view">
+          <div class="panel">
+            <div class="panel-heading"><h2>Temporäre Webkeys</h2><button id="add-webkey">Webkey erstellen</button></div>
+            <div id="webkey-list" class="table-wrap"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-heading"><h2>API-Keys</h2><button id="add-api-key">API-Key erstellen</button></div>
+            <div id="api-key-list" class="table-wrap"></div>
+          </div>
+        </section>
+
+        <section id="view-logs" class="view">
+          <div class="panel">
+            <div class="panel-heading"><h2>Audit-Logs</h2><button id="refresh-logs" class="secondary">Aktualisieren</button></div>
+            <div id="log-list" class="log-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="editor-dialog">
+      <form id="editor-form" method="dialog" class="dialog-form"></form>
+    </dialog>
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/panel/assets/app.js"></script>
+  </body>
+</html>

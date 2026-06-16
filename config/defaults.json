@@ -20,6 +20,7 @@
     "archiveCategoryId": "",
     "logChannelId": "",
     "supportRoleIds": [],
+    "maxActivePerCategory": 3,
     "transcriptsEnabled": true,
     "transcriptMaxMessages": 5000,
     "panel": {
@@ -51,6 +52,11 @@
     "notificationChannelId": "",
     "supportRoleIds": [],
     "roomName": "\u30fbSupport | {username}",
-    "deleteRoomOnClose": true
+    "deleteRoomOnClose": true,
+    "categories": []
+  },
+  "factions": {
+    "enabled": true,
+    "color": "#F1C40F"
   }
 }

@@ -62,6 +62,44 @@ export class ApiKeyService {
       allowedGuildIds: fromJson(row.allowed_guild_ids, []),
     };
   }
+
+  async list() {
+    const rows = await this.database('api_keys').orderBy('id', 'desc');
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      prefix: row.key_prefix,
+      shortKey: `dbot_${row.key_prefix}_...`,
+      permissions: fromJson(row.permissions_json, []),
+      allowedGuildIds: fromJson(row.allowed_guild_ids, []),
+      revoked: Boolean(row.revoked),
+      lastUsedAt: row.last_used_at,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async revoke(id) {
+    await this.database('api_keys')
+      .where({ id })
+      .update({
+        revoked: true,
+        updated_at: this.database.fn.now(),
+      });
+    return this.database('api_keys').where({ id }).first();
+  }
+
+  async find(id) {
+    const row = await this.database('api_keys').where({ id }).first();
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      prefix: row.key_prefix,
+      permissions: fromJson(row.permissions_json, []),
+      allowedGuildIds: fromJson(row.allowed_guild_ids, []),
+      revoked: Boolean(row.revoked),
+    };
+  }
 }
 
 export function hashKey(value) {

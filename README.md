@@ -3,17 +3,20 @@
 Ein modularer Discord-Bot auf Basis von Node.js und `discord.js` v14. Das
 Projekt kombiniert Willkommensnachrichten, archivierende Tickets,
 Voice-Support, eine API-Key-geschuetzte REST-API und eine austauschbare
-SQLite-/MySQL-Datenhaltung.
+SQLite-/MySQL-Datenhaltung. Eine Fraktionsverwaltung und ein geschuetztes
+Webpanel sind ebenfalls integriert.
 
 ## Funktionen
 
 - Dynamische Willkommens-Embeds mit individuell erzeugtem PNG
-- Ticket-Erstellung per Dropdown mit frei definierbaren Kategorien
+- Ticket-Erstellung ueber Open-Ticket-Button und privates Kategorie-Dropdown
 - Zufällige sechsstellige Ticketnummern wie `ticket-583742-username`
 - Private Ticket-Kanaele, Support-Rollen, Uebernahme und Aktionsprotokoll
 - Archivierung statt automatischer Loeschung
 - Wiedereroeffnung, endgueltige Loeschung und HTML-Transkripte
 - Voice-Warteraum mit manuell uebernehmbaren Supportfaellen
+- Fraktionsliste mit Leitung, Stellvertretung, Mitgliedern, Typ und Status
+- Responsives Webpanel mit Einmal-Keys, Rollenstufen und CSRF-Schutz
 - REST-API fuer Nachrichten, Embeds, Nutzer, Tickets, Logs und Konfiguration
 - API-Keys mit Berechtigungen und optionaler Guild-Einschraenkung
 - SQLite als Standard, MySQL/MariaDB fuer produktive und verteilte Setups
@@ -92,7 +95,7 @@ konfigurierten Kategorien und Kanaelen die genannten Aktionen ausfuehren darf.
 2. [`config/defaults.json`](config/defaults.json) anpassen.
 3. Slash-Commands mit `npm run deploy:commands` registrieren.
 4. Optional mit `/bot-config set` serverbezogene Werte ueberschreiben.
-5. Mit `/ticket-panel` das Ticket-Dropdown senden.
+5. Mit `/ticket-panel` das Open-Ticket-Panel senden.
 6. Fuer externe Anwendungen einen API-Key erzeugen:
 
 ```bash
@@ -108,8 +111,9 @@ ausschliesslich sein SHA-256-Hash.
 | --- | --- |
 | `/ping` | Gateway-Latenz pruefen |
 | `/help` | Funktionsuebersicht |
-| `/ticket-panel` | Ticket-Dropdown senden |
+| `/ticket-panel` | Open-Ticket-Panel senden |
 | `/ticket-category add` | Neue Ticket-Kategorie erstellen |
+| `/ticket-category edit` | Ticket-Kategorie bearbeiten |
 | `/ticket-category list` | Ticket-Kategorien anzeigen |
 | `/ticket-category delete` | Ticket-Kategorie loeschen |
 | `/ticket close` | Aktuelles Ticket archivieren |
@@ -119,6 +123,18 @@ ausschliesslich sein SHA-256-Hash.
 | `/voice-support status` | Aktiven Voice-Fall anzeigen |
 | `/voice-support move` | Wartenden Nutzer manuell verschieben |
 | `/voice-support close` | Voice-Fall schliessen |
+| `/voice-category add` | Neuen Voice-Warteraum konfigurieren |
+| `/voice-category edit` | Voice-Support-Kategorie bearbeiten |
+| `/voice-category list` | Voice-Support-Kategorien anzeigen |
+| `/voice-category delete` | Voice-Support-Kategorie loeschen |
+| `/fraktion erstellen` | Neue Fraktion erstellen |
+| `/fraktion bearbeiten` | Fraktion bearbeiten |
+| `/fraktion liste` | Fraktionsliste anzeigen |
+| `/fraktion anzeigen` | Fraktion im Detail anzeigen |
+| `/fraktion mitglied-hinzufuegen` | Fraktionsmitglied eintragen |
+| `/webkey erstellen` | Einmaligen Webpanel-Key erstellen |
+| `/webkey liste` | Temporaere Webkeys anzeigen |
+| `/webkey widerrufen` | Webkey und Sitzung widerrufen |
 | `/bot-config show` | Guild-Konfiguration zusammenfassen |
 | `/bot-config set` | Ausgewaehlte Guild-Werte setzen |
 
@@ -142,3 +158,10 @@ npm run validate
 Der Befehl fuehrt ESLint und die Tests mit dem integrierten Node-Test-Runner
 aus. Laufzeitdaten, SQLite-Dateien und Transkripte liegen unter `data/` und
 werden nicht versioniert.
+
+## Webpanel
+
+Das Webpanel laeuft standardmaessig unter
+`http://127.0.0.1:6767/panel`. `/webkey erstellen` erzeugt einen sicheren,
+einmal verwendbaren Login-Key. Der Klartext-Key wird nur in Discord angezeigt;
+in der Datenbank liegen ausschliesslich Hashes.

@@ -1,6 +1,6 @@
 # REST-API
 
-Basis-URL: `http://127.0.0.1:3000/api`
+Basis-URL: `http://127.0.0.1:6767/api`
 
 Der aktuelle OpenAPI-Ueberblick steht ohne Authentifizierung unter
 `GET /api/openapi.json`. Der Health-Check ist `GET /api/health`.
@@ -35,6 +35,8 @@ Verfuegbare Berechtigungen:
 | `logs:write` | Anwendungslogs schreiben |
 | `config:read` | Guild-Konfiguration lesen |
 | `config:write` | Guild-Konfiguration und Kategorien aendern |
+| `factions:read` | Fraktionen und Mitglieder lesen |
+| `factions:write` | Fraktionen und Mitglieder verwalten |
 | `*` | alle Aktionen |
 
 `--guilds` ist optional. Ohne Guild-Liste gilt der Key fuer jede Guild, auf die
@@ -59,6 +61,13 @@ der Bot Zugriff hat.
 | `POST` | `/v1/guilds/:guildId/tickets/:id/transcript` | `tickets:read` |
 | `DELETE` | `/v1/guilds/:guildId/tickets/:id` | `tickets:delete` |
 | `POST` | `/v1/guilds/:guildId/logs` | `logs:write` |
+| `GET` | `/v1/guilds/:guildId/factions` | `factions:read` |
+| `POST` | `/v1/guilds/:guildId/factions` | `factions:write` |
+| `GET` | `/v1/guilds/:guildId/factions/:id` | `factions:read` |
+| `PATCH` | `/v1/guilds/:guildId/factions/:id` | `factions:write` |
+| `DELETE` | `/v1/guilds/:guildId/factions/:id` | `factions:write` |
+| `POST` | `/v1/guilds/:guildId/factions/:id/members` | `factions:write` |
+| `DELETE` | `/v1/guilds/:guildId/factions/:id/members/:userId` | `factions:write` |
 
 Ticket-IDs duerfen die sichtbare sechsstellige `ticketNumber`, die UUID
 `publicId` oder fuer Abwaertskompatibilitaet die interne numerische ID sein.
@@ -66,7 +75,7 @@ Ticket-IDs duerfen die sichtbare sechsstellige `ticketNumber`, die UUID
 ## Nachricht und Embed
 
 ```bash
-curl -X POST http://127.0.0.1:3000/api/v1/guilds/GUILD_ID/messages \
+curl -X POST http://127.0.0.1:6767/api/v1/guilds/GUILD_ID/messages \
   -H "Authorization: Bearer API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -113,3 +122,10 @@ GET /api/v1/guilds/GUILD_ID/tickets?status=archived&userId=USER_ID&limit=50
 Statuscodes: `400` fuer Validierung, `401` fuer fehlende Authentifizierung,
 `403` fuer fehlende Rechte, `404` fuer unbekannte Ressourcen und `500` fuer
 unerwartete Serverfehler.
+
+## Webpanel
+
+Das Webpanel ist unter `http://127.0.0.1:6767/panel` erreichbar. Es verwendet
+keinen dauerhaften API-Key im Browser. `/webkey erstellen` liefert einen
+Einmal-Key, der beim Login gegen eine `HttpOnly`-Session und einen separaten
+CSRF-Token getauscht wird.

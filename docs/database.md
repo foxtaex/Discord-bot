@@ -15,6 +15,20 @@ Speichert einen JSON-Patch pro Guild. Die Standardwerte bleiben in
 Guild-spezifische Select-Menue-Kategorien mit Label, Beschreibung, Emoji,
 Elternkategorie, Support-Rollen und Sortierung.
 
+### `ticket_panels`
+
+Registry aller mit `/ticket-panel` gesendeten Nachrichten. Kanal- und
+Nachrichten-ID ermoeglichen automatische Panel-Aktualisierungen nach
+Kategorieaenderungen. Nicht mehr vorhandene Nachrichten werden beim naechsten
+Update aus der Registry entfernt.
+
+### `voice_support_categories`
+
+Guild-spezifische Voice-Support-Konfigurationen mit Key, Anzeigename,
+Warteraum, Zielkategorie, Benachrichtigungskanal, Support-Rollen,
+Raum-Namensschema und Sortierung. Warteraeume sind innerhalb eines Servers
+eindeutig.
+
 ### `tickets`
 
 Zentrale Ticket-Historie:
@@ -27,10 +41,12 @@ Zentrale Ticket-Historie:
   `deleted`
 - Bearbeiter sowie Schliess- und Loeschzeitpunkte
 - lokaler Transkriptpfad
-- `active_key` als Duplikatschutz pro Guild, Nutzer und Kategorie
+- `active_key` mit nummeriertem Slot als Limit pro Guild, Nutzer und Kategorie
 
-Beim Archivieren wird `active_key` auf `NULL` gesetzt. So kann ein Nutzer ein
-neues Ticket erstellen, waehrend die alte Historie erhalten bleibt.
+Standardmaessig stehen pro Nutzer und Kategorie drei aktive Slots zur
+Verfuegung. Beim Archivieren wird `active_key` auf `NULL` gesetzt. So kann ein
+Nutzer sofort ein neues Ticket erstellen, waehrend die alte Historie erhalten
+bleibt.
 
 Die interne `id` bleibt fuer Fremdschluessel und unsichtbare
 Discord-Custom-IDs reserviert. Kanalnamen, Embeds, Logs und Transkripte nutzen
@@ -43,10 +59,11 @@ Uebernahme, Archivierung, Wiedereroeffnung, Transkript oder Loeschung.
 
 ### `voice_cases`
 
-Voice-Supportfaelle mit Warteraum, privatem Raum, Benachrichtigungskanal,
-Bearbeiter, temporaerem Invite-Code und Zeitpunkten. `active_key` verhindert
-doppelte aktive Faelle je Guild und Nutzer. `claimed_by` und `claimed_at`
-bleiben nach Abschluss fuer die Support-Historie erhalten.
+Voice-Supportfaelle mit Kategorie-Key, Warteraum, privatem Raum,
+Benachrichtigungskanal, Bearbeiter, temporaerem Invite-Code und Zeitpunkten.
+`active_key` verhindert doppelte aktive Faelle je Guild und Nutzer.
+`claimed_by` und `claimed_at` bleiben nach Abschluss fuer die Support-Historie
+erhalten.
 
 ### `api_keys`
 
@@ -60,6 +77,32 @@ Persistente fachliche Logs mit Level, Quelle, Nachricht und JSON-Kontext.
 ### `bot_instances`
 
 Instanz-ID, Rolle, Hostname, Metadaten, Startzeit und letzter Heartbeat.
+
+### `factions` und `faction_members`
+
+Fraktionsstammdaten sowie separate Mitgliedseintraege mit Position und
+Notizen. Fraktionen besitzen eine stabile `public_id`.
+
+### `web_access_keys`
+
+Temporaere Einmal-Keys mit Prefix, SHA-256-Hash, Ersteller,
+Berechtigungsstufe, Ablauf, Verbrauchs- und Widerrufszeitpunkt.
+
+### `web_sessions`
+
+Gehashte Webpanel-Sitzungen und CSRF-Hashes. Sitzungen sind an Guild, Nutzer,
+Key und Ablaufzeit gebunden und koennen zentral widerrufen werden.
+
+### `webpanel_settings`
+
+Reserviert guild-spezifische Webpanel-Einstellungen fuer weitere
+Darstellungs- und Zugriffsoptionen.
+
+### `user_permissions`
+
+Vorbereitete persistente Benutzerrechte fuer spaetere direkte Web-Logins.
+Aktuell werden effektive Rechte ueber den temporaeren Key und die Sitzung
+gespeichert.
 
 ## Migrationen
 

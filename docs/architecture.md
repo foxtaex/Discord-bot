@@ -19,9 +19,11 @@
 |   |   `-- migrations/
 |   |-- modules/
 |   |   |-- configuration/
+|   |   |-- factions/
 |   |   |-- general/
 |   |   |-- tickets/
 |   |   |-- voice-support/
+|   |   |-- web-access/
 |   |   `-- welcome/
 |   |-- repositories/
 |   |-- services/
@@ -57,6 +59,10 @@ Instanzkoordination.
 
 **API** enthaelt Express-Middleware, Authentifizierung, Routen und
 Fehlerausgabe.
+
+**Web** enthaelt die responsive Verwaltungsoberflaeche ohne separaten
+Build-Schritt. Sie nutzt same-origin Routen unter `/panel/api`, gehashte
+serverseitige Sessions und CSRF-Tokens.
 
 ## Konfigurationsfluss
 

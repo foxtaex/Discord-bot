@@ -5,12 +5,13 @@ export class VoiceCaseRepository {
     this.database = database;
   }
 
-  async create({ guildId, userId, waitingChannelId }) {
+  async create({ guildId, userId, waitingChannelId, voiceCategoryKey = null }) {
     const row = {
       public_id: randomUUID(),
       guild_id: guildId,
       user_id: userId,
       waiting_channel_id: waitingChannelId,
+      voice_category_key: voiceCategoryKey,
       status: 'creating',
       active_key: `${guildId}:${userId}`,
     };
@@ -53,6 +54,7 @@ function mapVoiceCase(row) {
     guildId: row.guild_id,
     userId: row.user_id,
     waitingChannelId: row.waiting_channel_id,
+    voiceCategoryKey: row.voice_category_key,
     supportChannelId: row.support_channel_id,
     notificationChannelId: row.notification_channel_id,
     status: row.status,

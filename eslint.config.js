@@ -26,4 +26,15 @@ export default [
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  {
+    files: ['src/web/**/*.js'],
+    languageOptions: {
+      globals: {
+        clearTimeout: 'readonly',
+        document: 'readonly',
+        FormData: 'readonly',
+        navigator: 'readonly',
+      },
+    },
+  },
 ];

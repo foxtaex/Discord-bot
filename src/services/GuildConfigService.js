@@ -21,6 +21,11 @@ export class GuildConfigService {
     if (databaseCategories.length > 0) {
       config.tickets.categories = databaseCategories;
     }
+    const databaseVoiceCategories =
+      await this.repository.listVoiceCategories(guildId);
+    if (databaseVoiceCategories.length > 0) {
+      config.voiceSupport.categories = databaseVoiceCategories;
+    }
     validateGuildConfig(config);
 
     this.cache.set(guildId, {
@@ -49,6 +54,21 @@ export class GuildConfigService {
     await this.repository.upsert(
       guildId,
       deepMerge(currentOverride, { tickets: { categories } }),
+    );
+    this.cache.delete(guildId);
+    return this.get(guildId, { refresh: true });
+  }
+
+  async replaceVoiceCategories(guildId, categories) {
+    const current = await this.get(guildId);
+    validateGuildConfig(
+      deepMerge(current, { voiceSupport: { categories } }),
+    );
+    await this.repository.replaceVoiceCategories(guildId, categories);
+    const currentOverride = (await this.repository.find(guildId)) || {};
+    await this.repository.upsert(
+      guildId,
+      deepMerge(currentOverride, { voiceSupport: { categories } }),
     );
     this.cache.delete(guildId);
     return this.get(guildId, { refresh: true });

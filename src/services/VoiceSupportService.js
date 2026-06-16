@@ -51,46 +51,80 @@ export class VoiceSupportService {
 
     if (!newState.channelId) return;
     const config = await this.configService.get(newState.guild.id);
+    const voiceCategory = this.findCategoryByWaitingChannel(
+      config,
+      newState.channelId,
+    );
     if (
       !config.voiceSupport.enabled ||
-      newState.channelId !== config.voiceSupport.waitingChannelId ||
+      (!voiceCategory &&
+        newState.channelId !== config.voiceSupport.waitingChannelId) ||
       newState.member.user.bot
     ) {
       return;
     }
 
-    await this.ensureCase(newState.member, config);
+    await this.ensureCase(newState.member, config, voiceCategory);
   }
 
   async reconcileGuild(guild, config = null) {
     config ||= await this.configService.get(guild.id);
-    if (
-      !config.voiceSupport.enabled ||
-      !config.voiceSupport.waitingChannelId
-    ) {
+    if (!config.voiceSupport.enabled) {
       return [];
     }
 
-    const waitingChannel = await guild.channels
-      .fetch(config.voiceSupport.waitingChannelId)
-      .catch(() => null);
-    if (!waitingChannel?.isVoiceBased()) {
-      throw new NotFoundError(
-        'Der konfigurierte Voice-Warteraum wurde nicht gefunden.',
-      );
+    const targets = (config.voiceSupport.categories || []).map((category) => ({
+      waitingChannelId: category.waitingChannelId,
+      category,
+    }));
+    if (
+      config.voiceSupport.waitingChannelId &&
+      !targets.some(
+        (target) =>
+          target.waitingChannelId === config.voiceSupport.waitingChannelId,
+      )
+    ) {
+      targets.push({
+        waitingChannelId: config.voiceSupport.waitingChannelId,
+        category: null,
+      });
     }
 
     const cases = [];
-    for (const member of waitingChannel.members.values()) {
-      if (!member.user.bot) {
-        cases.push(await this.ensureCase(member, config));
+    for (const target of targets) {
+      const waitingChannel = await guild.channels
+        .fetch(target.waitingChannelId)
+        .catch(() => null);
+      if (!waitingChannel?.isVoiceBased()) {
+        this.logger.warn(
+          {
+            guildId: guild.id,
+            waitingChannelId: target.waitingChannelId,
+            voiceCategoryKey: target.category?.key,
+          },
+          'Configured voice support waiting channel was not found',
+        );
+        continue;
+      }
+
+      for (const member of waitingChannel.members.values()) {
+        if (!member.user.bot) {
+          cases.push(
+            await this.ensureCase(member, config, target.category),
+          );
+        }
       }
     }
     return cases;
   }
 
-  async ensureCase(member, config = null) {
+  async ensureCase(member, config = null, voiceCategory = null) {
     config ||= await this.configService.get(member.guild.id);
+    voiceCategory ||= this.findCategoryByWaitingChannel(
+      config,
+      member.voice?.channelId || config.voiceSupport.waitingChannelId,
+    );
+    const settings = this.resolveVoiceSettings(config, voiceCategory);
     const existing = await this.voiceCaseRepository.findActive(
       member.guild.id,
       member.id,
@@ -121,8 +155,8 @@ export class VoiceSupportService {
     }
 
     if (
-      !config.voiceSupport.waitingChannelId ||
-      !config.voiceSupport.notificationChannelId
+      !settings.waitingChannelId ||
+      !settings.notificationChannelId
     ) {
       throw new UserError(
         'Voice-Support ist aktiviert, aber Warte- oder Benachrichtigungskanal fehlt.',
@@ -135,7 +169,8 @@ export class VoiceSupportService {
       voiceCase = await this.voiceCaseRepository.create({
         guildId: member.guild.id,
         userId: member.id,
-        waitingChannelId: config.voiceSupport.waitingChannelId,
+        waitingChannelId: settings.waitingChannelId,
+        voiceCategoryKey: settings.key,
       });
     } catch (error) {
       const raced = await this.voiceCaseRepository.findActive(
@@ -147,9 +182,9 @@ export class VoiceSupportService {
     }
 
     try {
-      const roleIds = unique(config.voiceSupport.supportRoleIds);
+      const roleIds = settings.supportRoleIds;
       const roomName = sanitizeVoiceChannelName(
-        renderTemplate(config.voiceSupport.roomName, {
+        renderTemplate(settings.roomName, {
           username: member.user.username,
           displayName: member.displayName,
           userId: member.id,
@@ -159,7 +194,7 @@ export class VoiceSupportService {
       supportChannel = await member.guild.channels.create({
         name: roomName,
         type: ChannelType.GuildVoice,
-        parent: config.voiceSupport.categoryId || undefined,
+        parent: settings.categoryId || undefined,
         permissionOverwrites: [
           {
             id: member.guild.roles.everyone.id,
@@ -200,7 +235,7 @@ export class VoiceSupportService {
       });
 
       const notificationChannel = member.guild.channels.cache.get(
-        config.voiceSupport.notificationChannelId,
+        settings.notificationChannelId,
       );
       if (!notificationChannel?.isTextBased()) {
         throw new NotFoundError(
@@ -229,6 +264,11 @@ export class VoiceSupportService {
               `<@${member.id}> wartet in <#${voiceCase.waitingChannelId}>.\nDer Nutzer wird erst nach einer manuellen Uebernahme verschoben.`,
             )
             .addFields({
+              name: 'Category',
+              value: settings.label,
+              inline: true,
+            })
+            .addFields({
               name: 'Privater Support-Raum',
               value: `<#${supportChannel.id}>`,
             })
@@ -247,6 +287,7 @@ export class VoiceSupportService {
         context: {
           userId: member.id,
           supportChannelId: supportChannel.id,
+          voiceCategoryKey: settings.key,
         },
       });
       return voiceCase;
@@ -262,7 +303,7 @@ export class VoiceSupportService {
 
   async claimAndMove(voiceCase, member) {
     const config = await this.configService.get(voiceCase.guildId);
-    this.assertSupport(member, config);
+    this.assertSupport(member, config, voiceCase);
     if (!['waiting', 'claimed', 'active'].includes(voiceCase.status)) {
       throw new UserError('Dieser Voice-Supportfall ist nicht mehr aktiv.');
     }
@@ -334,7 +375,7 @@ export class VoiceSupportService {
 
   async moveUser(voiceCase, member, { system = false } = {}) {
     const config = await this.configService.get(voiceCase.guildId);
-    if (!system) this.assertSupport(member, config);
+    if (!system) this.assertSupport(member, config, voiceCase);
     if (!voiceCase.activeKey || voiceCase.status === 'closed') {
       throw new UserError('Dieser Voice-Supportfall ist nicht mehr aktiv.');
     }
@@ -374,7 +415,7 @@ export class VoiceSupportService {
 
   async close(voiceCase, member, { system = false } = {}) {
     const config = await this.configService.get(voiceCase.guildId);
-    if (!system) this.assertSupport(member, config);
+    if (!system) this.assertSupport(member, config, voiceCase);
     if (voiceCase.status === 'closed') {
       throw new UserError('Dieser Voice-Supportfall ist bereits geschlossen.');
     }
@@ -417,15 +458,57 @@ export class VoiceSupportService {
     }
   }
 
-  assertSupport(member, config) {
+  assertSupport(member, config, voiceCase = null) {
+    const category = voiceCase
+      ? this.findVoiceCategory(config, voiceCase)
+      : null;
+    const roleIds = this.resolveVoiceSettings(config, category).supportRoleIds;
     if (
       !this.permissionService.canVoiceSupport(
         member,
-        config.voiceSupport.supportRoleIds,
+        roleIds,
       )
     ) {
       throw new PermissionError();
     }
+  }
+
+  findCategoryByWaitingChannel(config, waitingChannelId) {
+    return (config.voiceSupport.categories || []).find(
+      (category) => category.waitingChannelId === waitingChannelId,
+    );
+  }
+
+  findVoiceCategory(config, voiceCase) {
+    const categories = config.voiceSupport.categories || [];
+    return (
+      categories.find(
+        (category) => category.key === voiceCase.voiceCategoryKey,
+      ) ||
+      categories.find(
+        (category) =>
+          category.waitingChannelId === voiceCase.waitingChannelId,
+      )
+    );
+  }
+
+  resolveVoiceSettings(config, category = null) {
+    return {
+      key: category?.key || null,
+      label: category?.label || 'Voice Support',
+      waitingChannelId:
+        category?.waitingChannelId || config.voiceSupport.waitingChannelId,
+      categoryId:
+        category?.parentCategoryId || config.voiceSupport.categoryId,
+      notificationChannelId:
+        category?.notificationChannelId ||
+        config.voiceSupport.notificationChannelId,
+      supportRoleIds: unique([
+        ...(config.voiceSupport.supportRoleIds || []),
+        ...(category?.supportRoleIds || []),
+      ]),
+      roomName: category?.roomName || config.voiceSupport.roomName,
+    };
   }
 
   createControls(caseId) {

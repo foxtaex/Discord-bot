@@ -33,6 +33,15 @@ export function createOpenApiDocument(port) {
         get: { summary: 'Guild-Konfiguration lesen' },
         patch: { summary: 'Guild-Konfiguration aktualisieren' },
       },
+      '/v1/guilds/{guildId}/factions': {
+        get: { summary: 'Fraktionen auflisten' },
+        post: { summary: 'Fraktion erstellen' },
+      },
+      '/v1/guilds/{guildId}/factions/{factionId}': {
+        get: { summary: 'Fraktion lesen' },
+        patch: { summary: 'Fraktion aktualisieren' },
+        delete: { summary: 'Fraktion loeschen' },
+      },
     },
     components: {
       securitySchemes: {

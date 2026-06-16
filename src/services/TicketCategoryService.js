@@ -41,6 +41,23 @@ export class TicketCategoryService {
     );
     return category;
   }
+
+  async update(guildId, key, changes) {
+    const categories = await this.list(guildId);
+    const index = categories.findIndex((entry) => entry.key === key);
+    if (index === -1) {
+      throw new UserError(`Die Ticket-Kategorie \`${key}\` existiert nicht.`);
+    }
+
+    const updatedCategory = normalizeCategory({
+      ...categories[index],
+      ...changes,
+      key,
+    });
+    const updated = categories.toSpliced(index, 1, updatedCategory);
+    await this.configService.replaceCategories(guildId, updated);
+    return updatedCategory;
+  }
 }
 
 export function normalizeCategory(category) {

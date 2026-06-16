@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createAuthMiddleware, requirePermission } from './auth.js';
 import { createOpenApiDocument } from './openapi.js';
 import { UserError } from '../core/errors.js';
+import { createWebPanelRouter } from './WebPanelRouter.js';
 
 const messageSchema = z.object({
   channelId: z.string().min(1),
@@ -49,6 +50,19 @@ const categorySchema = z.array(
     supportRoleIds: z.array(z.string()).default([]),
   }),
 );
+const factionSchema = z.object({
+  name: z.string().min(1).max(100),
+  status: z
+    .enum(['active', 'inactive', 'recruiting', 'closed'])
+    .default('active'),
+  type: z.enum(['state', 'legal', 'illegal', 'neutral']).default('neutral'),
+  leaderId: z.string().max(32).default(''),
+  deputyId: z.string().max(32).default(''),
+  discordRoleId: z.string().max(32).default(''),
+  channelId: z.string().max(32).default(''),
+  description: z.string().max(4000).default(''),
+  notes: z.string().max(4000).default(''),
+});
 
 export class ApiServer {
   constructor(context) {
@@ -91,6 +105,7 @@ export class ApiServer {
     this.app.get('/api/openapi.json', (_req, res) => {
       res.json(createOpenApiDocument(config.api.port));
     });
+    this.app.use('/panel', createWebPanelRouter(this.context));
 
     this.app.use('/api/v1', createAuthMiddleware(apiKeyService));
     this.registerRoutes();
@@ -129,9 +144,12 @@ export class ApiServer {
       requirePermission('config:write'),
       async (req, res) => {
         const categories = categorySchema.parse(req.body);
-        res.json(
-          await configService.replaceCategories(req.params.guildId, categories),
+        const config = await configService.replaceCategories(
+          req.params.guildId,
+          categories,
         );
+        await services.tickets.refreshPanels(req.params.guildId);
+        res.json(config);
       },
     );
 
@@ -276,6 +294,109 @@ export class ApiServer {
           .parse(req.body);
         await auditService.write({ guildId: req.params.guildId, ...body });
         res.status(201).json({ ok: true });
+      },
+    );
+
+    router.get(
+      '/guilds/:guildId/factions',
+      requirePermission('factions:read'),
+      async (req, res) => {
+        res.json({
+          factions: await services.factions.list(req.params.guildId),
+        });
+      },
+    );
+
+    router.post(
+      '/guilds/:guildId/factions',
+      requirePermission('factions:write'),
+      async (req, res) => {
+        const faction = await services.factions.create(
+          req.params.guildId,
+          factionSchema.parse(req.body),
+          apiActor(req),
+        );
+        res.status(201).json(faction);
+      },
+    );
+
+    router.get(
+      '/guilds/:guildId/factions/:factionId',
+      requirePermission('factions:read'),
+      async (req, res) => {
+        res.json(
+          await services.factions.get(
+            req.params.guildId,
+            req.params.factionId,
+          ),
+        );
+      },
+    );
+
+    router.patch(
+      '/guilds/:guildId/factions/:factionId',
+      requirePermission('factions:write'),
+      async (req, res) => {
+        res.json(
+          await services.factions.update(
+            req.params.guildId,
+            req.params.factionId,
+            factionSchema.partial().parse(req.body),
+            apiActor(req),
+          ),
+        );
+      },
+    );
+
+    router.delete(
+      '/guilds/:guildId/factions/:factionId',
+      requirePermission('factions:write'),
+      async (req, res) => {
+        res.json(
+          await services.factions.remove(
+            req.params.guildId,
+            req.params.factionId,
+            apiActor(req),
+          ),
+        );
+      },
+    );
+
+    router.post(
+      '/guilds/:guildId/factions/:factionId/members',
+      requirePermission('factions:write'),
+      async (req, res) => {
+        const member = z
+          .object({
+            userId: z.string().min(1).max(32),
+            displayName: z.string().max(100).default(''),
+            position: z.string().max(100).default(''),
+            notes: z.string().max(2000).default(''),
+          })
+          .parse(req.body);
+        res.json(
+          await services.factions.addMember(
+            req.params.guildId,
+            req.params.factionId,
+            member,
+            apiActor(req),
+          ),
+        );
+      },
+    );
+
+    router.delete(
+      '/guilds/:guildId/factions/:factionId/members/:userId',
+      requirePermission('factions:write'),
+      async (req, res) => {
+        res.json(
+          await services.factions.removeMember(
+            req.params.guildId,
+            req.params.factionId,
+            req.params.userId,
+            apiActor(req),
+          ),
+        );
       },
     );
 

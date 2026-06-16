@@ -6,30 +6,44 @@ export class TicketRepository {
     this.database = database;
   }
 
-  async create({ guildId, userId, categoryKey, metadata = {} }) {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const record = {
-        public_id: randomUUID(),
-        ticket_number: generateTicketNumber(),
-        guild_id: guildId,
-        user_id: userId,
-        category_key: categoryKey,
-        status: 'creating',
-        active_key: `${guildId}:${userId}:${categoryKey}`,
-        metadata_json: toJson(metadata),
-      };
+  async create({
+    guildId,
+    userId,
+    categoryKey,
+    metadata = {},
+    maxActive = 3,
+  }) {
+    for (let slot = 1; slot <= maxActive; slot += 1) {
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const record = {
+          public_id: randomUUID(),
+          ticket_number: generateTicketNumber(),
+          guild_id: guildId,
+          user_id: userId,
+          category_key: categoryKey,
+          status: 'creating',
+          active_key: createActiveKey(guildId, userId, categoryKey, slot),
+          metadata_json: toJson(metadata),
+        };
 
-      try {
-        const [id] = await this.database('tickets').insert(record);
-        return this.findById(typeof id === 'object' ? id.id : id);
-      } catch (error) {
-        if (!isUniqueConstraintError(error, 'ticket_number') || attempt === 9) {
-          throw error;
+        try {
+          const [id] = await this.database('tickets').insert(record);
+          return this.findById(typeof id === 'object' ? id.id : id);
+        } catch (error) {
+          if (isUniqueConstraintError(error, 'active_key')) break;
+          if (
+            !isUniqueConstraintError(error, 'ticket_number') ||
+            attempt === 9
+          ) {
+            throw error;
+          }
         }
       }
     }
 
-    throw new Error('Could not allocate a unique ticket number.');
+    const error = new Error('Ticket active limit reached.');
+    error.code = 'TICKET_ACTIVE_LIMIT';
+    throw error;
   }
 
   async findById(id) {
@@ -61,10 +75,53 @@ export class TicketRepository {
   async findActive(guildId, userId, categoryKey) {
     const row = await this.database('tickets')
       .where({
-        active_key: `${guildId}:${userId}:${categoryKey}`,
+        guild_id: guildId,
+        user_id: userId,
+        category_key: categoryKey,
       })
+      .whereNotNull('active_key')
+      .orderBy('id', 'asc')
       .first();
     return mapTicket(row);
+  }
+
+  async countActive(guildId, userId, categoryKey) {
+    const row = await this.database('tickets')
+      .where({
+        guild_id: guildId,
+        user_id: userId,
+        category_key: categoryKey,
+      })
+      .whereNotNull('active_key')
+      .count({ count: '*' })
+      .first();
+    return Number(row?.count || 0);
+  }
+
+  async reserveActiveSlot(
+    id,
+    { guildId, userId, categoryKey, maxActive = 3, changes = {} },
+  ) {
+    for (let slot = 1; slot <= maxActive; slot += 1) {
+      try {
+        await this.database('tickets')
+          .where({ id })
+          .update({
+            ...changes,
+            active_key: createActiveKey(
+              guildId,
+              userId,
+              categoryKey,
+              slot,
+            ),
+            updated_at: this.database.fn.now(),
+          });
+        return this.findById(id);
+      } catch (error) {
+        if (!isUniqueConstraintError(error, 'active_key')) throw error;
+      }
+    }
+    return null;
   }
 
   async list({ guildId, status, userId, limit = 100 }) {
@@ -137,6 +194,10 @@ function mapTicket(row) {
 
 export function generateTicketNumber() {
   return String(randomInt(100000, 1000000));
+}
+
+function createActiveKey(guildId, userId, categoryKey, slot) {
+  return `${guildId}:${userId}:${categoryKey}:${slot}`;
 }
 
 function isUniqueConstraintError(error, column) {

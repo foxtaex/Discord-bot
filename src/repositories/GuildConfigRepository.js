@@ -61,4 +61,45 @@ export class GuildConfigRepository {
       );
     });
   }
+
+  async listVoiceCategories(guildId) {
+    const rows = await this.database('voice_support_categories')
+      .where({ guild_id: guildId, enabled: true })
+      .orderBy('sort_order', 'asc')
+      .orderBy('id', 'asc');
+
+    return rows.map((row) => ({
+      key: row.category_key,
+      label: row.label,
+      waitingChannelId: row.waiting_channel_id,
+      parentCategoryId: row.parent_category_id || '',
+      notificationChannelId: row.notification_channel_id || '',
+      supportRoleIds: fromJson(row.support_role_ids, []),
+      roomName: row.room_name || '',
+    }));
+  }
+
+  async replaceVoiceCategories(guildId, categories) {
+    await this.database.transaction(async (trx) => {
+      await trx('voice_support_categories')
+        .where({ guild_id: guildId })
+        .delete();
+      if (categories.length === 0) return;
+
+      await trx('voice_support_categories').insert(
+        categories.map((category, index) => ({
+          guild_id: guildId,
+          category_key: category.key,
+          label: category.label,
+          waiting_channel_id: category.waitingChannelId,
+          parent_category_id: category.parentCategoryId || null,
+          notification_channel_id: category.notificationChannelId || null,
+          support_role_ids: toJson(category.supportRoleIds || []),
+          room_name: category.roomName || '',
+          sort_order: index,
+          enabled: true,
+        })),
+      );
+    });
+  }
 }

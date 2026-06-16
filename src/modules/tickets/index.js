@@ -2,12 +2,14 @@ import {
   AttachmentBuilder,
   ChannelType,
   EmbedBuilder,
+  Events,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
 import { TicketService } from '../../services/TicketService.js';
 import { TranscriptService } from '../../services/TranscriptService.js';
+import { UserError } from '../../core/errors.js';
 
 export async function createModule(context) {
   const transcriptService = new TranscriptService(context);
@@ -19,8 +21,26 @@ export async function createModule(context) {
     async register(registry) {
       registry.registerCommand(panelCommand(service));
       registry.registerCommand(ticketCommand(service));
+      registry.registerEvent(
+        Events.ClientReady,
+        async (client) => {
+          for (const guild of client.guilds.cache.values()) {
+            const result = await service.refreshPanels(guild.id);
+            if (result.total > 0) {
+              context.logger.info(
+                { guildId: guild.id, ...result },
+                'Registered ticket panels refreshed',
+              );
+            }
+          }
+        },
+        { once: true },
+      );
       registry.registerSelect('ticket:create', (interaction) =>
         handleCreate(interaction, service),
+      );
+      registry.registerButton('ticket-open', (interaction) =>
+        handleTicketOpen(interaction, service),
       );
       registry.registerButton('ticket:', (interaction) =>
         handleButton(interaction, service),
@@ -33,7 +53,7 @@ function panelCommand(service) {
   return {
     data: new SlashCommandBuilder()
       .setName('ticket-panel')
-      .setDescription('Sendet das Dropdown-Panel fuer neue Tickets.')
+      .setDescription('Sendet das Open-Ticket-Panel.')
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
       .addChannelOption((option) =>
         option
@@ -44,7 +64,7 @@ function panelCommand(service) {
       ),
     async execute(interaction) {
       const channel = interaction.options.getChannel('kanal') || interaction.channel;
-      await service.sendPanel(channel);
+      await service.sendPanel(channel, interaction.user.id);
       await interaction.reply({
         content: `Ticket-Panel wurde in <#${channel.id}> gesendet.`,
         flags: MessageFlags.Ephemeral,
@@ -108,13 +128,37 @@ function ticketCommand(service) {
 }
 
 async function handleCreate(interaction, service) {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const ticket = await service.createTicket(
-    interaction.guild,
-    interaction.user,
-    interaction.values[0],
+  await interaction.deferUpdate();
+  try {
+    const ticket = await service.createTicket(
+      interaction.guild,
+      interaction.user,
+      interaction.values[0],
+    );
+    await interaction.editReply({
+      content: `Your ticket has been created: <#${ticket.channelId}>.`,
+      embeds: [],
+      components: [],
+    });
+  } catch (error) {
+    if (!(error instanceof UserError)) throw error;
+    await interaction.editReply({
+      content: error.message,
+      embeds: [],
+      components: [],
+    });
+  }
+}
+
+async function handleTicketOpen(interaction, service) {
+  await service.registerPanelMessage(interaction.message);
+  const payload = await service.createCategorySelectionPayload(
+    interaction.guildId,
   );
-  await interaction.editReply(`Dein Ticket wurde erstellt: <#${ticket.channelId}>.`);
+  await interaction.reply({
+    ...payload,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleButton(interaction, service) {

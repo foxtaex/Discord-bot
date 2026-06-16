@@ -28,10 +28,12 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().default(''),
   API_ENABLED: booleanFromEnv.default(true),
   API_HOST: z.string().default('127.0.0.1'),
-  API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  API_PORT: z.coerce.number().int().min(1).max(65535).default(6767),
   API_MASTER_KEY: z.string().default(''),
   API_CORS_ORIGINS: z.string().default(''),
   API_RATE_LIMIT: z.coerce.number().int().positive().default(120),
+  WEB_PANEL_PUBLIC_URL: z.string().default(''),
+  WEB_PANEL_COOKIE_SECURE: booleanFromEnv.default(false),
   LOG_LEVEL: z.string().default('info'),
   AUTO_MIGRATE: booleanFromEnv.default(true),
   INSTANCE_ID: z.string().default(''),
@@ -61,6 +63,7 @@ const fileConfigSchema = z.object({
     archiveCategoryId: z.string(),
     logChannelId: z.string(),
     supportRoleIds: z.array(z.string()),
+    maxActivePerCategory: z.number().int().min(1).max(10).default(3),
     transcriptsEnabled: z.boolean(),
     transcriptMaxMessages: z.number().int().positive(),
     panel: z.object({
@@ -87,7 +90,26 @@ const fileConfigSchema = z.object({
     supportRoleIds: z.array(z.string()),
     roomName: z.string(),
     deleteRoomOnClose: z.boolean(),
+    categories: z
+      .array(
+        z.object({
+          key: z.string().regex(/^[a-z0-9_-]+$/),
+          label: z.string(),
+          waitingChannelId: z.string(),
+          parentCategoryId: z.string().optional().default(''),
+          notificationChannelId: z.string().optional().default(''),
+          supportRoleIds: z.array(z.string()).default([]),
+          roomName: z.string().optional().default(''),
+        }),
+      )
+      .default([]),
   }),
+  factions: z
+    .object({
+      enabled: z.boolean().default(true),
+      color: z.string().default('#F1C40F'),
+    })
+    .default({ enabled: true, color: '#F1C40F' }),
 });
 
 export function validateGuildConfig(value) {
@@ -131,6 +153,10 @@ export async function loadConfig({ requireDiscord = true } = {}) {
         .map((origin) => origin.trim())
         .filter(Boolean),
       rateLimit: env.API_RATE_LIMIT,
+      webPanelPublicUrl:
+        env.WEB_PANEL_PUBLIC_URL ||
+        `http://${env.API_HOST}:${env.API_PORT}/panel`,
+      webPanelCookieSecure: env.WEB_PANEL_COOKIE_SECURE,
     },
     runtime: {
       logLevel: env.LOG_LEVEL,

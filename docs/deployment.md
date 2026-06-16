@@ -38,11 +38,18 @@ ausfuehren und `Restart=on-failure` verwenden.
 
 ## Reverse Proxy
 
-Nur `/api` muss weitergeleitet werden. Beispiel fuer Nginx:
+`/api` und `/panel` muessen weitergeleitet werden. Beispiel fuer Nginx:
 
 ```nginx
 location /api/ {
-    proxy_pass http://127.0.0.1:3000;
+    proxy_pass http://127.0.0.1:6767;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /panel/ {
+    proxy_pass http://127.0.0.1:6767;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -51,6 +58,10 @@ location /api/ {
 
 Fuer oeffentliche APIs sollten zusaetzliche Netzwerkregeln, TLS, eng begrenzte
 API-Keys und ein vorgeschaltetes Rate-Limit verwendet werden.
+
+Bei HTTPS muss `WEB_PANEL_COOKIE_SECURE=true` gesetzt werden.
+`WEB_PANEL_PUBLIC_URL` muss auf die erreichbare `/panel`-URL zeigen, damit
+`/webkey erstellen` den richtigen Link ausgibt.
 
 ## Updates
 

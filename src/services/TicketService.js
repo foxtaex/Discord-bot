@@ -16,6 +16,7 @@ export class TicketService {
     client,
     configService,
     ticketRepository,
+    ticketPanelRepository,
     transcriptService,
     permissionService,
     auditService,
@@ -24,18 +25,58 @@ export class TicketService {
     this.client = client;
     this.configService = configService;
     this.ticketRepository = ticketRepository;
+    this.ticketPanelRepository = ticketPanelRepository;
     this.transcriptService = transcriptService;
     this.permissionService = permissionService;
     this.auditService = auditService;
     this.logger = logger;
   }
 
-  async sendPanel(channel) {
+  async sendPanel(channel, createdBy = null) {
     const config = await this.configService.get(channel.guild.id);
     if (!config.tickets.enabled) {
       throw new UserError('Das Ticket-System ist deaktiviert.');
     }
+    const payload = this.createPanelPayload(config, {
+      requireCategories: true,
+    });
+    const message = await channel.send(payload);
+    await this.registerPanelMessage(message, createdBy);
+    return message;
+  }
+
+  createPanelPayload(config, { requireCategories = false } = {}) {
     const categories = config.tickets.categories.slice(0, 25);
+    if (requireCategories && categories.length === 0) {
+      throw new UserError('Es sind keine Ticket-Kategorien konfiguriert.');
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(parseColor(config.branding.color))
+      .setTitle(config.tickets.panel.title)
+      .setDescription(
+        categories.length > 0
+          ? config.tickets.panel.description
+          : `${config.tickets.panel.description}\n\nAktuell sind keine Ticket-Kategorien verfuegbar.`,
+      )
+      .setFooter({ text: config.branding.footer });
+    const openButton = new ButtonBuilder()
+      .setCustomId('ticket-open')
+      .setLabel('Open Ticket')
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(categories.length === 0);
+    return {
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(openButton)],
+    };
+  }
+
+  async createCategorySelectionPayload(guildId) {
+    const config = await this.configService.get(guildId, { refresh: true });
+    const categories = config.tickets.categories.slice(0, 25);
+    if (!config.tickets.enabled) {
+      throw new UserError('Das Ticket-System ist deaktiviert.');
+    }
     if (categories.length === 0) {
       throw new UserError('Es sind keine Ticket-Kategorien konfiguriert.');
     }
@@ -55,16 +96,91 @@ export class TicketService {
         }),
       );
 
-    return channel.send({
+    return {
       embeds: [
         new EmbedBuilder()
           .setColor(parseColor(config.branding.color))
-          .setTitle(config.tickets.panel.title)
-          .setDescription(config.tickets.panel.description)
+          .setTitle('Select a ticket category')
+          .setDescription(
+            categories
+              .map(
+                (category) =>
+                  `${category.emoji || ''} **${category.label}**\n${category.description}`,
+              )
+              .join('\n\n')
+              .slice(0, 4096),
+          )
           .setFooter({ text: config.branding.footer }),
       ],
       components: [new ActionRowBuilder().addComponents(select)],
+    };
+  }
+
+  async registerPanelMessage(message, createdBy = null) {
+    if (!this.ticketPanelRepository || !message?.guildId) return null;
+    return this.ticketPanelRepository.register({
+      guildId: message.guildId,
+      channelId: message.channelId,
+      messageId: message.id,
+      createdBy,
     });
+  }
+
+  async refreshPanels(guildId) {
+    if (!this.ticketPanelRepository) {
+      return { total: 0, updated: 0, removed: 0, failed: 0 };
+    }
+    const panels = await this.ticketPanelRepository.listByGuild(guildId);
+    if (panels.length === 0) {
+      return { total: 0, updated: 0, removed: 0, failed: 0 };
+    }
+
+    const config = await this.configService.get(guildId, { refresh: true });
+    const payload = this.createPanelPayload(config);
+    const guild = await this.client.guilds.fetch(guildId);
+    const result = {
+      total: panels.length,
+      updated: 0,
+      removed: 0,
+      failed: 0,
+    };
+
+    for (const panel of panels) {
+      const channel = await guild.channels
+        .fetch(panel.channelId)
+        .catch(() => null);
+      if (!channel?.isTextBased() || !channel.messages) {
+        await this.ticketPanelRepository.removeByMessage(panel.messageId);
+        result.removed += 1;
+        continue;
+      }
+
+      const message = await channel.messages
+        .fetch(panel.messageId)
+        .catch(() => null);
+      if (!message) {
+        await this.ticketPanelRepository.removeByMessage(panel.messageId);
+        result.removed += 1;
+        continue;
+      }
+
+      try {
+        await message.edit(payload);
+        result.updated += 1;
+      } catch (error) {
+        result.failed += 1;
+        this.logger.warn(
+          {
+            error,
+            guildId,
+            channelId: panel.channelId,
+            messageId: panel.messageId,
+          },
+          'Ticket panel could not be updated',
+        );
+      }
+    }
+    return result;
   }
 
   async createTicket(guild, user, categoryKey, actorId = user.id) {
@@ -76,14 +192,16 @@ export class TicketService {
     const category = this.getCategory(config, categoryKey);
     if (!category) throw new UserError('Diese Ticket-Kategorie existiert nicht.');
 
-    const existing = await this.ticketRepository.findActive(
+    const maxActive = config.tickets.maxActivePerCategory;
+    const activeCount = await this.ticketRepository.countActive(
       guild.id,
       user.id,
       categoryKey,
     );
-    if (existing) {
-      const location = existing.channelId ? `<#${existing.channelId}>` : 'bereits';
-      throw new UserError(`Du hast in dieser Kategorie ${location} ein offenes Ticket.`);
+    if (activeCount >= maxActive) {
+      throw new UserError(
+        `Du hast in dieser Kategorie bereits ${activeCount} aktive Tickets. Archiviere zuerst eines, bevor du ein neues erstellst.`,
+      );
     }
 
     let ticket;
@@ -92,18 +210,12 @@ export class TicketService {
         guildId: guild.id,
         userId: user.id,
         categoryKey,
+        maxActive,
       });
     } catch (error) {
-      const raced = await this.ticketRepository.findActive(
-        guild.id,
-        user.id,
-        categoryKey,
-      );
-      if (raced) {
+      if (error.code === 'TICKET_ACTIVE_LIMIT') {
         throw new UserError(
-          raced.channelId
-            ? `Du hast bereits ein offenes Ticket: <#${raced.channelId}>.`
-            : 'Ein Ticket fuer dich wird bereits erstellt.',
+          `Du hast in dieser Kategorie bereits ${maxActive} aktive Tickets. Archiviere zuerst eines, bevor du ein neues erstellst.`,
         );
       }
       throw error;
@@ -297,14 +409,15 @@ export class TicketService {
       throw new UserError('Nur archivierte Tickets koennen wieder geoeffnet werden.');
     }
 
-    const duplicate = await this.ticketRepository.findActive(
+    const maxActive = config.tickets.maxActivePerCategory;
+    const activeCount = await this.ticketRepository.countActive(
       ticket.guildId,
       ticket.userId,
       ticket.categoryKey,
     );
-    if (duplicate) {
+    if (activeCount >= maxActive) {
       throw new UserError(
-        `Der Nutzer hat bereits ein offenes Ticket: <#${duplicate.channelId}>.`,
+        `Der Nutzer hat in dieser Kategorie bereits ${activeCount} aktive Tickets.`,
       );
     }
 
@@ -317,10 +430,18 @@ export class TicketService {
     }
 
     const category = this.getCategory(config, ticket.categoryKey);
-    await this.ticketRepository.update(ticket.id, {
-      status: 'reopening',
-      active_key: `${ticket.guildId}:${ticket.userId}:${ticket.categoryKey}`,
+    const reserved = await this.ticketRepository.reserveActiveSlot(ticket.id, {
+      guildId: ticket.guildId,
+      userId: ticket.userId,
+      categoryKey: ticket.categoryKey,
+      maxActive,
+      changes: { status: 'reopening' },
     });
+    if (!reserved) {
+      throw new UserError(
+        `Der Nutzer hat in dieser Kategorie bereits ${maxActive} aktive Tickets.`,
+      );
+    }
 
     try {
       const parentId =
